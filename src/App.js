@@ -3,7 +3,12 @@ import Map from '@arcgis/core/Map';
 import MapView from '@arcgis/core/views/MapView';
 import Graphic from '@arcgis/core/Graphic';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
+import CSVLayer from '@arcgis/core/layers/CSVLayer';
+import geometryEngineAsync from '@arcgis/core/geometry/geometryEngineAsync';
+import Query from '@arcgis/core/tasks/support/Query';
 import axios from 'axios';
+import Swal from 'sweetalert2';
 import searchIcon from './assets/search.png';
 import './App.css'
 
@@ -55,6 +60,36 @@ function App() {
       zoom: 8
     });
     setView(mapView);
+
+ 
+    // let polygons = {
+    //   type: "polygon",
+    //   rings: [
+    //     [
+    //       [36.0, 31.0],
+    //       [36.0, 32.0],
+    //       [37.0, 32.0],
+    //       [37.0, 31.0],
+    //       [36.0, 31.0]
+    //     ]
+    //   ]
+    // };
+    
+
+    // let query = new Query({
+    //   geometry: polygons,
+    //   distance: 100,
+    //   units: "miles",
+    //   spatialRelationship: "intersects"
+    // });
+
+
+
+  // mapView.ui.add(sketch, "top-right");
+
+
+
+
   }, []);
 
   // to trigger the selected gov
@@ -116,6 +151,7 @@ function App() {
         }
       })
         .then(res => {
+          if(res.data.features.length > 0){
           res.data.features.forEach(feature => {
             feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
 
@@ -127,10 +163,60 @@ function App() {
           })
           setAllParks(res.data.features);
           setParks(res.data.features);
+        } else {
+          map.removeAll();
+          Swal.fire({
+            title: ' !!! لا توجد حدائق في هذا المنطقة',
+            text: 'الرجاء اختيار منطقة أخرى',
+            icon: 'warning',
+            confirmButtonText: 'تم'
+          })
+        }
+        })
+        
+        .catch(err => {
+          console.log(err);
+        });
+    } else if (!selectedDistrict && selectedGov) {
+      await axios.get(url + '/0' + '/query', {
+        params: {
+          where: `GOV_CODE=${selectedGov}`, outFields: "*", f: "json"
+        }
+      })
+        .then(res => {
+          if(res.data.features.length > 0){
+          res.data.features.forEach(feature => {
+            feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
+
+            feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)).attributes.GOV_NAME_AR;
+            // console.log("Find = ",govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)))
+            // govs?.find(gov => {
+            //   console.log("gov.attributes.GOV_CODE = ", gov.attributes.GOV_CODE , " = selectedGov = ", parseInt(selectedGov));
+            // });
+          })
+          setAllParks(res.data.features);
+          setParks(res.data.features);
+        } else {
+          map.removeAll();
+          Swal.fire({
+            title: ' !!! لا توجد حدائق في هذه المحافظة ', 
+            text: 'الرجاء اختيار محافظة أخرى',
+            icon: 'warning',
+            confirmButtonText: 'تم'
+          })
+        }
         })
         .catch(err => {
           console.log(err);
         });
+    } else {
+      map.removeAll();
+      Swal.fire({
+        icon: 'error',
+        title: ' !!! حدث خطأ',
+        text: ' !!! الرجاء اختيار المحافظة او الحى او المنطقة',
+        confirmButtonText: 'تم'
+      });
     }
   }
 
@@ -234,27 +320,33 @@ function App() {
     }
   });
 
+
   return (
     <div className="App">
       <div className="w-full flex ">
         <div id='mapDiv' className="w-3/4 mb-4"></div>
-        <div className="search-div flex  flex-col items-center w-1/4">
-          <h3 className="my-3">البحث عن المعالم</h3>
-          <select className="select-css my-3" onChange={onChangeGov}>
-            <option value="">اختر المحافظة</option>
-            {govs?.map((gov, idx) => {
-              return <option key={idx} value={gov.attributes.GOV_CODE}>{gov.attributes.GOV_NAME_AR}</option>
-            })}
-          </select>
+        <div className="search-div flex  flex-col items-center w-1/4 bg-gray-100">
+          <h2 className="my-3 font-bold text-lg">البحث عن المعالم</h2>
+          <div className="flex flex-col w-1/2">
+            <span className="font-bold" >المحافظة</span>
+            <select className="select-css mb-3 h-8 rounded" onChange={onChangeGov}>
+              <option value="">اختر المحافظة</option>
+              {govs?.map((gov, idx) => {
+                return <option key={idx} value={gov.attributes.GOV_CODE}>{gov.attributes.GOV_NAME_AR}</option>
+              })}
+            </select>
+          </div>
+          <div className="flex flex-col mb-3 w-1/2">
+            <span className="font-bold">المنطقة</span>
+            <select className="select-css h-8 rounded" onChange={onChangeDistrict}>
+              <option value="">اختر المنطقه</option>
+              {districts?.map((district, idx) => {
+                return <option key={idx} value={district.attributes.DIST_CODE}>{district.attributes.DISTRICT_NAME_AR}</option>
+              })}
+            </select>
+          </div>
 
-          <select className="select-css" onChange={onChangeDistrict}>
-            <option value="">اختر المنطقه</option>
-            {districts?.map((district, idx) => {
-              return <option key={idx} value={district.attributes.DIST_CODE}>{district.attributes.DISTRICT_NAME_AR}</option>
-            })}
-          </select>
-
-          <button className="my-3 p-3 btn-css bg-blue-600" onClick={searchParks}>بحث</button>
+          <button className="my-3 w-1/2 py-2 rounded text-white font-semibold btn-css bg-blue-500 hover:bg-blue-700 hover:scale-105" onClick={searchParks}>بحث</button>
 
         </div>
       </div>

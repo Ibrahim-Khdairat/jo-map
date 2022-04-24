@@ -3,9 +3,10 @@ import Map from '@arcgis/core/Map';
 import MapView from '@arcgis/core/views/MapView';
 import Graphic from '@arcgis/core/Graphic';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import SketchViewModel from "@arcgis/core/widgets/Sketch/SketchViewModel";
+import * as geometryEngineAsync from "@arcgis/core/geometry/geometryEngineAsync";
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import CSVLayer from '@arcgis/core/layers/CSVLayer';
-import geometryEngineAsync from '@arcgis/core/geometry/geometryEngineAsync';
 import Query from '@arcgis/core/tasks/support/Query';
 import axios from 'axios';
 import Swal from 'sweetalert2';
@@ -25,6 +26,10 @@ function App() {
   const [selectedDistrict, setSelectedDistrict] = useState(null);
   const [codedValues, setCodedValues] = useState([]);
   const [search, setSearch] = useState(null);
+  const [polygonGraphicsState, setPolygonGraphicsState] = useState(null);
+  const [circleSketchVM, setCircleSketchVM] = useState(null);
+  const [circlesLayer, setCirclesLayer] = useState(null);
+
 
   let mapView;
   let point;
@@ -52,41 +57,47 @@ function App() {
     let newmap = new Map({
       basemap: 'hybrid'
     });
-    setMap(newmap);
+
+    const polygonGraphicsLayer = new GraphicsLayer();
+    newmap.add(polygonGraphicsLayer);
+
+    const circleGraphicsLayer = new GraphicsLayer();
+    newmap.add(circleGraphicsLayer);
+    setCirclesLayer(circleGraphicsLayer);
+
     mapView = new MapView({
       container: 'mapDiv',
       map: newmap,
       center: [36, 31.5],
       zoom: 8
     });
+
+
+
+    const polygonSketchVM = new SketchViewModel({
+      view: mapView,
+      layer: polygonGraphicsLayer,
+      defaultCreateOptions: {
+        mode: "freehand",
+      },
+    });
+    const circleSketchVM = new SketchViewModel({
+      view: mapView,
+      layer: circleGraphicsLayer,
+      // defaultCreateOptions: {
+      //   mode: "hybrid"
+      // }
+    });
+
+
+
+
+
+    setPolygonGraphicsState(polygonSketchVM);
+    setCircleSketchVM(circleSketchVM);
+
+    setMap(newmap);
     setView(mapView);
-
- 
-    // let polygons = {
-    //   type: "polygon",
-    //   rings: [
-    //     [
-    //       [36.0, 31.0],
-    //       [36.0, 32.0],
-    //       [37.0, 32.0],
-    //       [37.0, 31.0],
-    //       [36.0, 31.0]
-    //     ]
-    //   ]
-    // };
-    
-
-    // let query = new Query({
-    //   geometry: polygons,
-    //   distance: 100,
-    //   units: "miles",
-    //   spatialRelationship: "intersects"
-    // });
-
-
-
-  // mapView.ui.add(sketch, "top-right");
-
 
 
 
@@ -151,29 +162,29 @@ function App() {
         }
       })
         .then(res => {
-          if(res.data.features.length > 0){
-          res.data.features.forEach(feature => {
-            feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
+          if (res.data.features.length > 0) {
+            res.data.features.forEach(feature => {
+              feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
 
-            feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)).attributes.GOV_NAME_AR;
-            // console.log("Find = ",govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)))
-            // govs?.find(gov => {
-            //   console.log("gov.attributes.GOV_CODE = ", gov.attributes.GOV_CODE , " = selectedGov = ", parseInt(selectedGov));
-            // });
-          })
-          setAllParks(res.data.features);
-          setParks(res.data.features);
-        } else {
-          map.removeAll();
-          Swal.fire({
-            title: ' !!! لا توجد حدائق في هذا المنطقة',
-            text: 'الرجاء اختيار منطقة أخرى',
-            icon: 'warning',
-            confirmButtonText: 'تم'
-          })
-        }
+              feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)).attributes.GOV_NAME_AR;
+              // console.log("Find = ",govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)))
+              // govs?.find(gov => {
+              //   console.log("gov.attributes.GOV_CODE = ", gov.attributes.GOV_CODE , " = selectedGov = ", parseInt(selectedGov));
+              // });
+            })
+            setAllParks(res.data.features);
+            setParks(res.data.features);
+          } else {
+            map.removeAll();
+            Swal.fire({
+              title: ' !!! لا توجد حدائق في هذا المنطقة',
+              text: 'الرجاء اختيار منطقة أخرى',
+              icon: 'warning',
+              confirmButtonText: 'تم'
+            })
+          }
         })
-        
+
         .catch(err => {
           console.log(err);
         });
@@ -184,27 +195,27 @@ function App() {
         }
       })
         .then(res => {
-          if(res.data.features.length > 0){
-          res.data.features.forEach(feature => {
-            feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
+          if (res.data.features.length > 0) {
+            res.data.features.forEach(feature => {
+              feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
 
-            feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)).attributes.GOV_NAME_AR;
-            // console.log("Find = ",govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)))
-            // govs?.find(gov => {
-            //   console.log("gov.attributes.GOV_CODE = ", gov.attributes.GOV_CODE , " = selectedGov = ", parseInt(selectedGov));
-            // });
-          })
-          setAllParks(res.data.features);
-          setParks(res.data.features);
-        } else {
-          map.removeAll();
-          Swal.fire({
-            title: ' !!! لا توجد حدائق في هذه المحافظة ', 
-            text: 'الرجاء اختيار محافظة أخرى',
-            icon: 'warning',
-            confirmButtonText: 'تم'
-          })
-        }
+              feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)).attributes.GOV_NAME_AR;
+              // console.log("Find = ",govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)))
+              // govs?.find(gov => {
+              //   console.log("gov.attributes.GOV_CODE = ", gov.attributes.GOV_CODE , " = selectedGov = ", parseInt(selectedGov));
+              // });
+            })
+            setAllParks(res.data.features);
+            setParks(res.data.features);
+          } else {
+            map.removeAll();
+            Swal.fire({
+              title: ' !!! لا توجد حدائق في هذه المحافظة ',
+              text: 'الرجاء اختيار محافظة أخرى',
+              icon: 'warning',
+              confirmButtonText: 'تم'
+            })
+          }
         })
         .catch(err => {
           console.log(err);
@@ -321,6 +332,39 @@ function App() {
   });
 
 
+  const createCircle = async () => {
+    circleSketchVM.activeFillSymbol = {
+      type: "simple-fill",
+      style: "solid",
+      color: [0, 0, 150, 0.1],
+      outline: {
+        color: [0, 0, 250],
+        width: 2,
+      },
+    };
+
+    circleSketchVM.create("circle");
+
+    circleSketchVM.on("create", async function (event) {
+      if (event.state === "complete") {
+
+        const geometries = circlesLayer.graphics.map(graphic => {
+          return graphic.geometry
+        });
+
+        const queryGeometry = await geometryEngineAsync.union(geometries.toArray());
+
+        console.log("queryGeometry = ", queryGeometry);
+
+      }
+    })
+
+
+  }
+
+  
+
+
   return (
     <div className="App">
       <div className="w-full flex ">
@@ -347,6 +391,7 @@ function App() {
           </div>
 
           <button className="my-3 w-1/2 py-2 rounded text-white font-semibold btn-css bg-blue-500 hover:bg-blue-700 hover:scale-105" onClick={searchParks}>بحث</button>
+          <button className="my-3 w-1/2 py-2 rounded text-white font-semibold btn-css bg-blue-500 hover:bg-blue-700 hover:scale-105" onClick={createCircle} >draw</button>
 
         </div>
       </div>

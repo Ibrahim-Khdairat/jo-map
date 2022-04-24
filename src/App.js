@@ -5,9 +5,11 @@ import Graphic from '@arcgis/core/Graphic';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import SketchViewModel from "@arcgis/core/widgets/Sketch/SketchViewModel";
 import * as geometryEngineAsync from "@arcgis/core/geometry/geometryEngineAsync";
-import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
+import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+import * as geometryService from "@arcgis/core/rest/geometryService";
+import QueryTask from '@arcgis/core/tasks/QueryTask';
 import CSVLayer from '@arcgis/core/layers/CSVLayer';
-import Query from '@arcgis/core/tasks/support/Query';
+import Query from "@arcgis/core/rest/support/Query";
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import searchIcon from './assets/search.png';
@@ -29,6 +31,10 @@ function App() {
   const [polygonGraphicsState, setPolygonGraphicsState] = useState(null);
   const [circleSketchVM, setCircleSketchVM] = useState(null);
   const [circlesLayer, setCirclesLayer] = useState(null);
+  const [featureLayer, setFeatureLayer] = useState(null);
+  const [graphicLayerState, setGraphicLayerState] = useState(null);
+  const [distance , setDistance] = useState(null);
+  const [unit , setUnit] = useState(null);
 
 
   let mapView;
@@ -40,6 +46,7 @@ function App() {
   let graphicLayer;
 
   useEffect(() => {
+    let codedValue = [];
     async function fetchData() {
       await axios.get(url + '/2' + '/query', {
         params: {
@@ -52,11 +59,32 @@ function App() {
         .catch(err => {
           console.log(err);
         });
+
+      // get the codedValue of the selected gov
+      await axios.get(url + '/1', {
+        params: {
+          f: "json"
+        }
+      })
+        .then(res => {
+          codedValue = res.data.fields.find(field => field.name === 'DISTRICT_NAME_AR').domain.codedValues;
+          setCodedValues(codedValue);
+        })
+        .catch(err => {
+          console.log(err);
+        });
     }
     fetchData();
     let newmap = new Map({
       basemap: 'hybrid'
     });
+
+    const feature = new FeatureLayer({
+      url: url + `/0`,
+      outFields: ["*"],
+
+    });
+    setFeatureLayer(feature);
 
     const polygonGraphicsLayer = new GraphicsLayer();
     newmap.add(polygonGraphicsLayer);
@@ -69,7 +97,7 @@ function App() {
       container: 'mapDiv',
       map: newmap,
       center: [36, 31.5],
-      zoom: 8
+      zoom: 7,
     });
 
 
@@ -89,17 +117,13 @@ function App() {
       // }
     });
 
-
-
-
-
     setPolygonGraphicsState(polygonSketchVM);
     setCircleSketchVM(circleSketchVM);
 
     setMap(newmap);
     setView(mapView);
 
-
+    // get the codedValue of the selected gov
 
   }, []);
 
@@ -110,22 +134,10 @@ function App() {
 
   // to get districts based on selected gov
   useEffect(() => {
-    let codedValue = [];
+
     async function fetchData() {
 
-      // get the codedValue of the selected gov
-      await axios.get(url + '/1', {
-        params: {
-          f: "json"
-        }
-      })
-        .then(res => {
-          codedValue = res.data.fields.find(field => field.name === 'DISTRICT_NAME_AR').domain.codedValues
-          setCodedValues(codedValue);
-        })
-        .catch(err => {
-          console.log(err);
-        });
+
 
       // get the districts of the selected gov
       await axios.get(url + '/1' + '/query', {
@@ -136,7 +148,7 @@ function App() {
         .then(res => {
           // set the Arabic name to each istrict
           res.data.features.forEach(feature => {
-            feature.attributes.DISTRICT_NAME_AR = codedValue?.find(codedValue => codedValue.code === feature.attributes.DISTRICT_NAME_AR).name;
+            feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DISTRICT_NAME_AR).name;
           })
           setDistricts(res.data.features);
         })
@@ -167,10 +179,7 @@ function App() {
               feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
 
               feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)).attributes.GOV_NAME_AR;
-              // console.log("Find = ",govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)))
-              // govs?.find(gov => {
-              //   console.log("gov.attributes.GOV_CODE = ", gov.attributes.GOV_CODE , " = selectedGov = ", parseInt(selectedGov));
-              // });
+
             })
             setAllParks(res.data.features);
             setParks(res.data.features);
@@ -200,11 +209,9 @@ function App() {
               feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
 
               feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)).attributes.GOV_NAME_AR;
-              // console.log("Find = ",govs?.find(gov => gov.attributes.GOV_CODE === parseInt(selectedGov)))
-              // govs?.find(gov => {
-              //   console.log("gov.attributes.GOV_CODE = ", gov.attributes.GOV_CODE , " = selectedGov = ", parseInt(selectedGov));
-              // });
+
             })
+            console.log(res.data.features);
             setAllParks(res.data.features);
             setParks(res.data.features);
           } else {
@@ -233,10 +240,11 @@ function App() {
 
   // to add the marker to the map
   useEffect(() => {
-
     if (parks.length > 0) {
-      map.removeAll();
+
+      graphicLayerState?.removeAll();
       parks.map(park => {
+        console.log(" park = ", park);
         point = {
           type: "point", // autocasts as new Point()
           longitude: park.geometry.x,
@@ -256,7 +264,6 @@ function App() {
             // Sets the icon font used to style the action button
             className: "esri-icon-zoom-out-magnifying-glass"
           }]
-
         };
 
         markerSymbol = {
@@ -279,20 +286,20 @@ function App() {
         graphics.push(graphic);
       })
 
-
       // add the graphics to the map
       graphicLayer = new GraphicsLayer({
         graphics: graphics
       });
-
+      setGraphicLayerState(graphicLayer);
       map?.add(graphicLayer);
       view?.goTo({
         center: [parks[0].geometry.x, parks[0].geometry.y],
         zoom: 12
       });
     }
-
   }, [parks]);
+
+
 
   const zoomIn = (park) => {
     view.goTo({
@@ -304,14 +311,11 @@ function App() {
 
 
   const searchPark = (e) => {
-    // setParks(allParks);
     let park = allParks.filter(park => park.attributes.LANDMARK_ANAME.includes(e.target.value));
     setParks(park);
     setSearch(e.target.value);
   }
 
-  const handleSearchPark = async (park) => {
-  }
 
   function zoomOut() {
     // In this case the view zooms out two LODs on each click
@@ -331,8 +335,10 @@ function App() {
     }
   });
 
-
   const createCircle = async () => {
+    circlesLayer?.removeAll();
+    graphicLayerState?.removeAll();
+    setParks([]);
     circleSketchVM.activeFillSymbol = {
       type: "simple-fill",
       style: "solid",
@@ -344,25 +350,123 @@ function App() {
     };
 
     circleSketchVM.create("circle");
-
     circleSketchVM.on("create", async function (event) {
       if (event.state === "complete") {
-
         const geometries = circlesLayer.graphics.map(graphic => {
           return graphic.geometry
         });
 
+        // geometryService.intersect(geometries, async (event) => {
+
+        // })
         const queryGeometry = await geometryEngineAsync.union(geometries.toArray());
 
-        console.log("queryGeometry = ", queryGeometry);
+        // const query = new Query({
+        //   geometry: queryGeometry,
+        //   outFields: ["*"],
+        //   returnGeometry: true,
+        //   outSpatialReference: view.SpatialReference,
+        //   spatialRelationship: "intersects"
+        // });
+
+        await featureLayer.queryFeatures({
+          geometry: queryGeometry,
+          outFields: ["*"],
+          returnGeometry: true,
+          outSpatialReference: view.spatialReference,
+
+        })
+          .then(res => {
+
+            let dataArray = res.features.map(feature => {
+              feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
+              feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(feature.attributes.GOV_CODE)).attributes.GOV_NAME_AR;
+              return {
+                geometry: { x: feature.geometry.longitude, y: feature.geometry.latitude },
+                attributes: feature.attributes
+              }
+            })
+
+            console.log("dataArray = ", dataArray);
+            setParks(dataArray);
+
+          })
+          .catch(err => {
+            console.log(err);
+          })
+
 
       }
-    })
+    });
+  }
 
-
+  const onChangeDistance = (e) => {
+    console.log("e.target.value = ", e.target.value);
+    setDistance(e.target.value);
   }
 
   
+  const onchangeUnit = (e) => {
+    console.log("e.target.value = ", e.target.value);
+    setUnit(e.target.value);
+  }
+
+
+  const searchPointt = async () => {
+    circlesLayer?.removeAll();
+    graphicLayerState?.removeAll();
+    setParks([]);
+    if(distance && unit){
+    view.on("click", async function (event) {
+      const query = new Query({
+        geometry: event.mapPoint,
+        outFields: ["*"],
+        returnGeometry: true,
+        outSpatialReference: view.spatialReference,
+        distance: distance,
+        units: unit
+      });
+
+      await featureLayer.queryFeatures(query)
+        .then(res => {
+          let dataArray = res.features.map(feature => {
+            feature.attributes.DISTRICT_NAME_AR = codedValues?.find(codedValue => codedValue.code === feature.attributes.DIST_CODE).name;
+            feature.attributes.GOV_NAME_AR = govs?.find(gov => gov.attributes.GOV_CODE === parseInt(feature.attributes.GOV_CODE)).attributes.GOV_NAME_AR;
+            return {
+              geometry: { x: feature.geometry.longitude, y: feature.geometry.latitude },
+              attributes: feature.attributes
+            }
+          })
+
+          console.log("dataArray = ", dataArray);
+          setParks(dataArray);
+
+        })
+        .catch(err => {
+          console.log(err);
+        })
+    })
+  } else if (distance && !unit) {
+    Swal.fire({
+      title: 'Please select a unit',
+      icon: 'error',
+      confirmButtonText: 'Ok'
+    })
+  } else if (!distance && unit) {
+    Swal.fire({
+      title: 'Please enter a distance',
+      icon: 'error',
+      confirmButtonText: 'Ok'
+    })
+  } else {
+    Swal.fire({
+      title: 'Please enter a distance and a unit',
+      icon: 'error',
+      confirmButtonText: 'Ok'
+    })
+  }
+  }
+
 
 
   return (
@@ -392,15 +496,33 @@ function App() {
 
           <button className="my-3 w-1/2 py-2 rounded text-white font-semibold btn-css bg-blue-500 hover:bg-blue-700 hover:scale-105" onClick={searchParks}>بحث</button>
           <button className="my-3 w-1/2 py-2 rounded text-white font-semibold btn-css bg-blue-500 hover:bg-blue-700 hover:scale-105" onClick={createCircle} >draw</button>
+          <input className="my-3 w-1/2 py-2 rounded text-black font-semibold btn-css " type="number" placeholder="مسافة البحث" onChange={onChangeDistance} />
+          <select onChange={onchangeUnit}>
+            <option value="">اختر الوحدة</option>
+            <option value="miles">miles</option>
+            <option value="nautical-miles">nautical-miles</option>
+            <option value="us-nautical-miles">us-nautical-miles</option>
+            <option value="kilometers">kilometers</option>
+            <option value="meters">meters</option>
+            <option value="feet">feet</option>
+
+          </select>
+          <button className="my-3 w-1/2 py-2 rounded text-white font-semibold btn-css bg-blue-500 hover:bg-blue-700 hover:scale-105" onClick={searchPointt} >click</button>
 
         </div>
       </div>
 
       <div className=" w-full flex flex-col ">
         <div className=" w-3/4 flex flex-row justify-end">
+          {parks?.length > 0 &&
+            <div className="mx-8">
+              <span>نتائج البحث : </span>
+              <span className="font-bold">{parks.length}</span>
+            </div>
+          }
           <div className="flex flex-row border mr-4 ">
             <input onChange={searchPark} type="text" className="form-control" placeholder="Search" aria-label="Search" />
-            <img onClick={handleSearchPark} src={searchIcon} alt="search" className="w-5 h-5 bg-white" />
+            <img src={searchIcon} alt="search" className="w-5 h-5 bg-white" />
           </div>
 
           <span>إسم المعلم </span>

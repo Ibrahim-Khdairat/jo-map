@@ -355,11 +355,11 @@ function App() {
         const geometries = circlesLayer.graphics.map(graphic => {
           return graphic.geometry
         });
-
+        console.log(geometries.items[0]);
         // geometryService.intersect(geometries, async (event) => {
 
         // })
-        const queryGeometry = await geometryEngineAsync.union(geometries.toArray());
+        // const queryGeometry = await geometryEngineAsync.union(geometries.toArray());
 
         // const query = new Query({
         //   geometry: queryGeometry,
@@ -370,7 +370,7 @@ function App() {
         // });
 
         await featureLayer.queryFeatures({
-          geometry: queryGeometry,
+          geometry: geometries.items[0],
           outFields: ["*"],
           returnGeometry: true,
           outSpatialReference: view.spatialReference,
